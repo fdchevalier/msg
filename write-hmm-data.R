@@ -11,13 +11,16 @@ decode.pileup.bases <- function(x, ref) {
     ## c..c   .+2cc   ^fa^f,^f,
     ## ref is a vector containing the corresponding reference alleles
     ## http://samtools.sourceforge.net/pileup.shtml
-    x <- gsub("\\^.", "", x) ## begin contiguous something...
-    x <- gsub("\\$", "", x)  ## end contiguous something...
+    re <- "\\^." ## begin contiguous something...
+    re <- c(re, "\\$")  ## end contiguous something...
 
     ## get rid of indels for now
     ## x <- gsub("^[\\+-][ACGTNacgtn]+", "", x)
-    x <- gsub("^[\\+-][ACGTNXMRWSYKVHDBacgtnxmrwsykvhdb]+", "", x)
-    x <- gsub(".*\\*.*", "", x)
+    re <- c(re, "^[\\+-][ACGTNXMRWSYKVHDBacgtnxmrwsykvhdb]+")
+    re <- c(re, ".*\\*.*")
+
+    # Concatenate all search in one for speed
+    x <- gsub(paste0(re, collapse = "|"), "", x)
 
     len <- 1
     while(length(grep("[\\+-]", x)) > 0) {
@@ -41,7 +44,7 @@ decode.pileup.bases <- function(x, ref) {
 
     ## Count occurrences of alleles
     cat("countalleles...")
-    tmpfile=tempfile()
+    tmpfile <- tempfile()
     cat(x, file=tmpfile, sep="\n")
     pipa <- pipe(sprintf("%s/countalleles < %s", dirname(dollar0), tmpfile))
     tab <- matrix(scan(pipa, what=integer()), ncol=5, byrow=TRUE)
@@ -93,6 +96,10 @@ for(contig in contigs) {
         pup <- scan(pipa, what="", sep="\n")
         close(pipa)
         pup <- strsplit(pup, "\t")
+        if (length(pup) == 0) {
+            cat("WARNING:", pupfile, "empty. Skipping...\n")
+            next
+        }
         stopifnot(sapply(pup, length) == 5)
         pup <- matrix(unlist(pup), ncol=5, byrow=TRUE)
         pup <- data.frame(pos=as.integer(pup[,1]), ref=unlist(lapply(pup[,2],toupper)), cons=pup[,3], reads=pup[,4], quals=pup[,5])
